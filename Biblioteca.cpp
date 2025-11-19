@@ -2,13 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <locale.h>
 
+/* --------------------------------------------------------------- */
+/* Estrutura do Livro */
 typedef struct {
     char titulo[60];
     char autor[40];
     char isbn[20];
-    char status;
 } Livro;
 
 /* --------------------------------------------------------------- */
@@ -32,13 +32,12 @@ int tamanho(FILE *arq) {
     return (int)(fim / sizeof(Livro));
 }
 
-/* --------------------------------------------------------------- */
+/* ----------------------Cadastrar-------------------------------- */
 void cadastrar(FILE *arq) {
     Livro L;
-    L.status = ' ';
     char confirma;
 
-    printf("\n=== CADASTRAR LIVRO ===\n");
+    printf("\n=== Cadastrar Livro ===\n");
     printf("Registro numero: %d\n", tamanho(arq) + 1);
 
     printf("Titulo: ");
@@ -58,13 +57,13 @@ void cadastrar(FILE *arq) {
         fseek(arq, 0, SEEK_END);
         fwrite(&L, sizeof(Livro), 1, arq);
         fflush(arq);
-        printf("Livro cadastrado!\n");
+        printf("Livro cadastrado.\n");
     } else {
         printf("Cancelado.\n");
     }
 }
 
-/* --------------------------------------------------------------- */
+/* -----------------------Consultar-------------------------------- */
 void consultar(FILE *arq) {
     int nr;
     Livro L;
@@ -74,6 +73,7 @@ void consultar(FILE *arq) {
     limpa_buffer();
 
     int total = tamanho(arq);
+
     if (nr <= 0 || nr > total) {
         printf("Codigo invalido.\n");
         return;
@@ -83,87 +83,85 @@ void consultar(FILE *arq) {
     fseek(arq, pos, SEEK_SET);
     fread(&L, sizeof(Livro), 1, arq);
 
-    printf("\n=== LIVRO %d ===\n", nr);
-    if (L.status == '*') printf("STATUS: EXCLUIDO\n");
-
+    printf("\n=== Livro %d ===\n", nr);
     printf("Titulo: %s\n", L.titulo);
     printf("Autor:  %s\n", L.autor);
     printf("ISBN:   %s\n", L.isbn);
 }
 
-/* --------------------------------------------------------------- */
+/* -----------------Gerar Arquivo Texto---------------------------- */
 void gerar_arquivo_texto(FILE *arq) {
     FILE *txt = fopen("C:\\ling_c\\Registro.txt", "w");
     Livro L;
     int i, total = tamanho(arq);
-    char status_str[12];
 
     if (!txt) {
         printf("Erro ao criar arquivo texto.\n");
         return;
     }
 
-    fprintf(txt, "RELATORIO DE LIVROS\n\n");
-    fprintf(txt, "COD  %-30s %-20s %-15s STATUS\n",
+    fprintf(txt, "Relatorio de Livros\n\n");
+    fprintf(txt, "COD  %-30s %-20s %-15s\n",
             "TITULO", "AUTOR", "ISBN");
-    fprintf(txt, "--------------------------------------------------------------------------\n");
+    fprintf(txt, "---------------------------------------------------------------\n");
 
     for (i = 0; i < total; i++) {
         fseek(arq, i * sizeof(Livro), SEEK_SET);
         fread(&L, sizeof(Livro), 1, arq);
 
-        if (L.status == '*') strcpy(status_str, "EXCLUIDO");
-        else strcpy(status_str, "ATIVO");
-
-        fprintf(txt, "%03d %-30s %-20s %-15s %s\n",
-                i + 1, L.titulo, L.autor, L.isbn, status_str);
+        fprintf(txt, "%03d %-30s %-20s %-15s\n",
+                i + 1, L.titulo, L.autor, L.isbn);
     }
 
     fclose(txt);
-    printf("Arquivo texto gerado com sucesso!\n");
+
+    printf("Arquivo texto gerado com sucesso.\n");
 }
 
-/* --------------------------------------------------------------- */
-void excluir(FILE *arq) {
-    int nr;
-    char confirma;
+/* --------------------Excluir------------------------------------- */
+/* Exclusao real: reescreve todo o arquivo sem o registro excluido */
+void excluir(FILE **arq) {
+    int nr, i, total;
     Livro L;
 
     printf("\nCodigo do livro a excluir: ");
     if (scanf("%d", &nr) != 1) { limpa_buffer(); return; }
     limpa_buffer();
 
-    int total = tamanho(arq);
+    total = tamanho(*arq);
+
     if (nr <= 0 || nr > total) {
         printf("Codigo invalido.\n");
         return;
     }
 
-    long pos = (long)(nr - 1) * sizeof(Livro);
-    fseek(arq, pos, SEEK_SET);
-    fread(&L, sizeof(Livro), 1, arq);
-
-    if (L.status == '*') {
-        printf("Registro ja excluido.\n");
+    FILE *temp = fopen("C:\\ling_c\\temp.dat", "w+b");
+    if (!temp) {
+        printf("Erro ao criar arquivo temporario.\n");
         return;
     }
 
-    printf("Confirmar exclusao (s/n)? ");
-    if (scanf("%c", &confirma) != 1) { limpa_buffer(); return; }
-    limpa_buffer();
+    fseek(*arq, 0, SEEK_SET);
 
-    if (toupper(confirma) == 'S') {
-        L.status = '*';
-        fseek(arq, pos, SEEK_SET);
-        fwrite(&L, sizeof(Livro), 1, arq);
-        fflush(arq);
-        printf("Excluido!\n");
-    } else {
-        printf("Cancelado.\n");
+    for (i = 0; i < total; i++) {
+        fread(&L, sizeof(Livro), 1, *arq);
+        if (i != nr - 1) {
+            fwrite(&L, sizeof(Livro), 1, temp);
+        }
     }
+
+    fclose(*arq);
+    fclose(temp);
+
+    remove("C:\\ling_c\\Registro.dat");
+    rename("C:\\ling_c\\temp.dat", "C:\\ling_c\\Registro.dat");
+
+    *arq = fopen("C:\\ling_c\\Registro.dat", "r+b");
+
+    printf("Livro excluido com sucesso.\n");
 }
 
-/* --------------------------------------------------------------- */
+/* ---------------------------MAIN-------------------------------- */
 int main(void) {
     FILE *arq = fopen("C:\\ling_c\\Registro.dat", "r+b");
     if (!arq) arq = fopen("C:\\ling_c\\Registro.dat", "w+b");
@@ -174,7 +172,7 @@ int main(void) {
 
     int op;
     do {
-        printf("\n========= BIBLIOTECA =========\n");
+        printf("\n========= Biblioteca =========\n");
         printf("1. Cadastrar livro\n");
         printf("2. Consultar livro\n");
         printf("3. Gerar arquivo texto\n");
@@ -191,12 +189,13 @@ int main(void) {
             case 1: cadastrar(arq); break;
             case 2: consultar(arq); break;
             case 3: gerar_arquivo_texto(arq); break;
-            case 4: excluir(arq); break;
+            case 4: excluir(&arq); break;
             case 5: printf("Saindo...\n"); break;
-            default: printf("Opcao invalida!\n");
+            default: printf("Opcao invalida.\n");
         }
     } while (op != 5);
 
     fclose(arq);
+
     return 0;
 }
